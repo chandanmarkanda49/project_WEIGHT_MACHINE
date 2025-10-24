@@ -27,6 +27,7 @@
 //pins:
 const int HX711_dout = 6;  //mcu > HX711 dout pin
 const int HX711_sck = 7;   //mcu > HX711 sck pin
+int LED = 13 ;
 
 //HX711 constructor:
 HX711_ADC LoadCell(HX711_dout, HX711_sck);
@@ -37,6 +38,7 @@ const int calVal_eepromAdress = 0;
 unsigned long t = 0;
 
 void setup() {
+  pinMode(LED , OUTPUT) ;
   Serial.begin(9600);
   delay(10);
   Serial.println();
@@ -70,6 +72,12 @@ void setup() {
 }
 
 void loop() {
+
+digitalWrite(LED, HIGH);
+delay(1000);
+
+digitalWrite(LED, LOW);
+delay(1000);
   static boolean newDataReady = 0;
   const int serialPrintInterval = 500;  //increase value to slow down serial print activity
   // check for new data/start next conversion:
