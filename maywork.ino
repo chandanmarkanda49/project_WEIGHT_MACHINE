@@ -17,10 +17,10 @@ unsigned long t = 0;                // variable for storing time (used for print
 const int rs = 12, en = 11, d4 = 5, d5 = 4, d6 = 3, d7 = 2;
 // LiquidCrystal_I2C lcd(0x27, 16, 2);
 LiquidCrystal lcd(rs, en, d4, d5, d6, d7);
-int push1 = 10;  //motor on 
+int push1 = 10;  //motor on
 
-int push3 = 9;  //teir
-int push4 = 13;  //setweight
+int push3 = 13;  //teir
+int push4 = 9;   //setweight
 int relay = 8;
 int weight = 50;
 float reading = 0;
@@ -38,9 +38,9 @@ void calibrate() {
   }
 
   Serial.println("Now, place your known mass on the loadcell.");
-  Serial.println("Place the weight of 65w charger (i.e. 123.0) from serial monitor.");
+  Serial.println("Place the weight of 65w charger (i.e. 100.0) from serial monitor.");
 
-  float known_mass = 123;  // variable to store user-entered known weight // change this value to for user
+  float known_mass = 100;  // variable to store user-entered known weight // change this value to for user
 
 
   LoadCell.refreshDataSet();                                           // refresh HX711 readings for accurate result
@@ -143,7 +143,7 @@ void setup() {
 
   Serial.begin(9600);
   delay(10);
-  Serial.println("Nano started");
+  Serial.println("  started");
 
   // lcd.init();
   // lcd.backlight();
@@ -237,8 +237,8 @@ void loop() {
         delay(700);
         printToLcd("", 16, 0, 1);
         return;
+        delay(50);
       }
-      delay(50);
     }
 
     weight++;
@@ -254,38 +254,42 @@ void loop() {
       if (millis() - lastTime >= 2000) {
         calibrate();  // ya fir calibrayion wala code
         printToLcd("CALIBRATING", 16, 0, 1);
+        delay(700);
+        printToLcd("", 16, 0, 1);
+        return;
+        delay(50);
       }
-
-
-      if (state == 5) {
-        state = 0;
-      } else {
-        state++;
-      }
-
-      switch (state) {
-        case 0:
-          weight = 50;
-          break;
-        case 1:
-          weight = 100;
-          break;
-        case 2:
-          weight = 200;
-          break;
-        case 3:
-          weight = 250;
-          break;
-        case 4:
-          weight = 500;
-          break;
-        default:
-          weight = 50;
-      }
-      printToLcd(String(weight), 3, 12, 0);
-      Serial.print(weight);
-      delay(200);
     }
+
+
+    if (state == 5) {
+      state = 0;
+    } else {
+      state++;
+    }
+
+    switch (state) {
+      case 0:
+        weight = 50;
+        break;
+      case 1:
+        weight = 100;
+        break;
+      case 2:
+        weight = 200;
+        break;
+      case 3:
+        weight = 250;
+        break;
+      case 4:
+        weight = 500;
+        break;
+      default:
+        weight = 50;
+    }
+    printToLcd(String(weight), 3, 12, 0);
+    Serial.print(weight);
+    delay(200);
   }
 
   // if (digitalRead((push4) == 0 && millis() - lastTime >= 2000)) {  //Weight incremental
@@ -319,6 +323,8 @@ void loop() {
       printToLcd(String(reading), 4, 1, 0);
 
       digitalWrite(relay, HIGH);
+      lcd.begin(16, 2);
+       printToLcd(String(reading), 3, 0, 0);
       printToLcd("MOTOR ON", 16, 0, 1);
 
       if (reading < -3) {
@@ -334,6 +340,8 @@ void loop() {
     digitalWrite(relay, LOW);
     printToLcd("DONE", 16, 0, 1);
     delay(1000);
+    lcd.begin(16, 2) ;
+    printToLcd(String(weight), 3, 12, 0);
     printToLcd("", 16, 0, 1);
   }
 }
