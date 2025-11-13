@@ -23,53 +23,9 @@ int push3 = 13;  //teir
 int push4 = 9;   //setweight
 int relay = 8;
 int weight = 50;
-float reading = 0;
+int reading = 0;
 uint8_t state = 0;
-
-void calibrate() {
-  Serial.println("*");
-  Serial.println("Start calibration:");
-  Serial.println("Place the load cell on a level stable surface.");
-  Serial.println("Remove any load applied to the load cell.");
-  LoadCell.update();                       // keep updating HX711 data
-  LoadCell.tareNoDelay();                  // start tare
-  if (LoadCell.getTareStatus() == true) {  // if tare done
-    Serial.println("Tare complete");
-  }
-
-  Serial.println("Now, place your known mass on the loadcell.");
-  Serial.println("Place the weight of 65w charger (i.e. 100.0) from serial monitor.");
-
-  float known_mass = 100;  // variable to store user-entered known weight // change this value to for user
-
-
-  LoadCell.refreshDataSet();                                           // refresh HX711 readings for accurate result
-  float newCalibrationValue = LoadCell.getNewCalibration(known_mass);  // calculate calibration factor
-
-  Serial.print("New calibration value has been set to: ");
-  Serial.print(newCalibrationValue);  // print calculated calibration factor
-  Serial.println(", use this as calibration value (calFactor) in your project sketch.");
-  Serial.print("Save this value to EEPROM address ");
-  Serial.print(calVal_eepromAdress);
-
-
-#if defined(ESP8266) || defined(ESP32)
-  EEPROM.begin(512);  // start EEPROM (for ESP boards)
-#endif
-  EEPROM.put(calVal_eepromAdress, newCalibrationValue);  // save calibration factor
-#if defined(ESP8266) || defined(ESP32)
-  EEPROM.commit();  // finish write (for ESP)
-#endif
-  EEPROM.get(calVal_eepromAdress, newCalibrationValue);  // verify by reading back
-  Serial.print("Value ");
-  Serial.print(newCalibrationValue);
-  Serial.print(" saved to EEPROM address: ");
-  Serial.println(calVal_eepromAdress);
-  // exit loop
-}
-
-
-
+float calVal = 396.24;
 void printToLcd(String data, uint8_t dataLength, uint8_t column, uint8_t row) {
   for (int i = column; i <= (dataLength + column); i++) {
     lcd.setCursor(i, row);
@@ -79,7 +35,65 @@ void printToLcd(String data, uint8_t dataLength, uint8_t column, uint8_t row) {
   lcd.print(data);
 }
 
+void calibrate() {
+  // wdt_reset();
+  Serial.println("***");
+  Serial.println("Start calibration:");
+  Serial.println("Place the load cell an a level stable surface.");
+  // Serial.println("Send 't' from serial monitor to set the tare offset.");
 
+  // LoadCell.update();
+  LoadCell.tareNoDelay();
+  delay(500);
+
+  boolean _resume = false;
+  Serial.println("state 1");
+  while (_resume == false) {
+    Serial.println("state 2");
+    LoadCell.update();
+    if (LoadCell.getTareStatus() == true) {
+      Serial.println("Tare complete");
+      _resume = true;
+    }
+  }
+
+  float lastWeight = LoadCell.getData();
+
+  Serial.println("Now, place your known mass on the loadcell.");
+  Serial.println("Then send the weight of phone 2 A (i.e. 100.0) from serial monitor.");
+  printToLcd("Place 100g wgt", 16, 0, 1);
+
+  while (1) {
+    if (!digitalRead(push4))
+      break;
+    delay(50);
+    // wdt_reset();
+  }
+
+  printToLcd("Please wait...", 16, 0, 1);
+
+
+  float known_mass = 100;
+
+  LoadCell.refreshDataSet();                                           //refresh the dataset to be sure that the known mass is measured correct
+  float newCalibrationValue = LoadCell.getNewCalibration(known_mass);  //get the new calibration value
+
+  Serial.print("New calibration value has been set to: ");
+  Serial.print(newCalibrationValue);
+  Serial.println(", use this as calibration value (calFactor) in your project sketch.");
+  Serial.print("Save this value to EEPROM adress ");
+  Serial.print(calVal_eepromAdress);
+
+  EEPROM.put(calVal_eepromAdress, newCalibrationValue);
+  EEPROM.get(calVal_eepromAdress, newCalibrationValue);
+  Serial.print("Value ");
+  Serial.print(newCalibrationValue);
+  Serial.print(" saved to EEPROM address: ");
+  Serial.println(calVal_eepromAdress);
+
+  Serial.println("End calibration");
+  Serial.println("***");
+}
 
 void changeSavedCalFactor() {                           //for testing purpose only {
   float oldCalibrationValue = LoadCell.getCalFactor();  // get current factor
@@ -155,6 +169,18 @@ void setup() {
   lcd.setCursor(3, 0);
   lcd.print("Welcome");
   Serial.println("50 weight limit");
+
+  EEPROM.get(calVal_eepromAdress, calVal);
+  Serial.println(calVal);
+
+  // check if the value is valid (not NaN or too small/large)
+  if (isnan(calVal) || calVal < 0.1 || calVal > 10000) {
+    Serial.println("Invalid EEPROM value! Using default calibration.");
+    calVal = 396.24;                          // fallback
+    EEPROM.put(calVal_eepromAdress, calVal);  // save correct value
+  }
+  LoadCell.setCalFactor(calVal);
+
   LoadCell.begin();  // initialize HX711 ADC module
   // LoadCell.setReverseOutput();       // optional: invert output if weight reads negative
 
@@ -166,10 +192,16 @@ void setup() {
   // check for timeout or bad connection
   if (LoadCell.getTareTimeoutFlag() || LoadCell.getSignalTimeoutFlag()) {
     Serial.println("Timeout, check MCU>HX711 wiring and pin designations");
+
+
     while (1)
-      ;  // infinite loop (halt program) if HX711 not responding
+      lcd.setCursor(1, 0);
+    lcd.println("LOAD CELL ERR");
+    ;  // infinite loop (halt program) if HX711 not responding
+
+
   } else {
-    float calVal = 1.0;                       // default calibration value
+    float calVal = 396.24;                    // default calibration value
     EEPROM.get(calVal_eepromAdress, calVal);  // read calibration factor from EEPROM
     LoadCell.setCalFactor(calVal);            // set calibration factor in HX711 object
     // LoadCell.setCalFactor(1.0);      // can also manually set initial factor
@@ -189,30 +221,10 @@ void setup() {
 
 void loop() {
 
-
-  // if (Serial.available()) {
-  //   String data = Serial.readStringUntil('\n');
-  //   data.trim();
-
-  // }
-
-  // static boolean newDataReady = 0;    // flag for new data availability
-  // const int serialPrintInterval = 0;  // control speed of serial printing (0 = no delay)
-
   if (LoadCell.update()) {
     reading = LoadCell.getData();  // calibrated units (grams if scale.set_scale() sahi hai)
-    printToLcd(String(reading), 3, 0, 0);
+    printToLcd(String(reading), 11, 0, 0);
   }
-
-  // if (newDataReady) {                          // if new data available
-  //   if (millis() > t + serialPrintInterval) {  // check if enough time passed
-  //     float i = LoadCell.getData();            // read filtered load cell data
-  //     Serial.print("Load_cell output val: ");
-  //     Serial.println(i);  // print current load cell reading
-  //     newDataReady = 0;   // reset flag
-  //     t = millis();       // update timestamp
-  //   }
-  // }
 
   // --- handle user commands from serial monitor ---
   if (Serial.available() > 0) {                      // if user typed something
@@ -252,8 +264,11 @@ void loop() {
     unsigned long lastTime = millis();
     while (!digitalRead(push4)) {
       if (millis() - lastTime >= 2000) {
+        printToLcd("CALIBRATING...", 16, 0, 1);
+        while (!digitalRead(push4))
+          ;
         calibrate();  // ya fir calibrayion wala code
-        printToLcd("CALIBRATING", 16, 0, 1);
+        printToLcd("CALIBRATION DONE", 16, 0, 1);
         delay(700);
         printToLcd("", 16, 0, 1);
         return;
@@ -287,18 +302,10 @@ void loop() {
       default:
         weight = 50;
     }
-    printToLcd(String(weight), 3, 12, 0);
+    printToLcd(String(weight), 4, 12, 0);
     Serial.print(weight);
     delay(200);
   }
-
-  // if (digitalRead((push4) == 0 && millis() - lastTime >= 2000)) {  //Weight incremental
-  //   weight++;
-  //   Serial.print("Weight: ");
-  //   Serial.println(weight);
-  //   printToLcd(String(weight), 3, 12, 0);
-  //   delay(250);
-  // }
 
   if (!digitalRead(push1)) {
     printToLcd("BOX DETECTED", 16, 0, 1);
@@ -316,16 +323,15 @@ void loop() {
       return;
     }
 
-    while (reading <= weight) {
-      LoadCell.update();
-      reading = LoadCell.getData();
-      Serial.println(reading);
-      printToLcd(String(reading), 4, 1, 0);
+    digitalWrite(relay, HIGH);
+    printToLcd("MOTOR ON", 16, 0, 1);
 
-      digitalWrite(relay, HIGH);
-      lcd.begin(16, 2);
-       printToLcd(String(reading), 3, 0, 0);
-      printToLcd("MOTOR ON", 16, 0, 1);
+    while (reading <= weight) {
+      if (LoadCell.update()) {
+        reading = LoadCell.getData();
+        Serial.println(reading);
+        printToLcd(String(reading), 11, 0, 0);
+      }
 
       if (reading < -3) {
         digitalWrite(relay, LOW);
@@ -340,8 +346,8 @@ void loop() {
     digitalWrite(relay, LOW);
     printToLcd("DONE", 16, 0, 1);
     delay(1000);
-    lcd.begin(16, 2) ;
-    printToLcd(String(weight), 3, 12, 0);
+    lcd.begin(16, 2);
     printToLcd("", 16, 0, 1);
+    printToLcd(String(weight), 4, 12, 0);
   }
 }
