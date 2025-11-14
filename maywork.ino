@@ -12,6 +12,7 @@ HX711_ADC LoadCell(HX711_dout, HX711_sck);
 
 const int calVal_eepromAdress = 0;  // EEPROM address (starting point) for calibration value
 unsigned long t = 0;                // variable for storing time (used for print intervals)
+uint8_t refreshCounter = 0;
 
 
 const int rs = 12, en = 11, d4 = 5, d5 = 4, d6 = 3, d7 = 2;
@@ -148,6 +149,13 @@ void changeSavedCalFactor() {                           //for testing purpose on
   Serial.println("End change calibration value");
   Serial.println("*");
 }
+
+void refresh(){
+  printToLcd(String(reading), 11, 0, 0);
+  printToLcd("", 16, 0, 1);
+  printToLcd(String(weight), 4, 12, 0);
+}
+
 void setup() {
   pinMode(push1, INPUT_PULLUP);
   pinMode(push3, INPUT_PULLUP);
@@ -224,6 +232,12 @@ void loop() {
   if (LoadCell.update()) {
     reading = LoadCell.getData();  // calibrated units (grams if scale.set_scale() sahi hai)
     printToLcd(String(reading), 11, 0, 0);
+
+    refreshCounter++;
+    if(refreshCounter >= 5){
+      refresh();
+      refreshCounter = 0;
+    }
   }
 
   // --- handle user commands from serial monitor ---
